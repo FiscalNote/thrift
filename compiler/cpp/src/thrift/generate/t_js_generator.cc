@@ -1566,7 +1566,11 @@ void t_js_generator::generate_service_client(t_service* tservice) {
                  << endl << indent() << "}" << endl;
 
       f_service_ << indent() << "var result = new " << resultname << "();" << endl << indent()
-                 << "result.read(" << inputVar << ");" << endl;
+                 << "try {" << endl
+                 << "  result.read(" << inputVar << ");" << endl
+                 << "} catch(e) {" << endl
+                 << "  return callback(e);" << endl
+                 << "}" << endl;
 
       f_service_ << indent() << inputVar << ".readMessageEnd();" << endl << endl;
 
