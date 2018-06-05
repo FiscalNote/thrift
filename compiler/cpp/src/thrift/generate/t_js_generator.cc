@@ -189,8 +189,9 @@ public:
   std::string declare_field(t_field* tfield, bool init = false, bool obj = false);
   std::string function_signature(t_function* tfunction,
                                  std::string prefix = "",
-                                 bool include_callback = false);
-  std::string argument_list(t_struct* tstruct, bool include_callback = false);
+                                 bool include_callback = false,
+                                 bool include_extra_options = false);
+  std::string argument_list(t_struct* tstruct, bool include_callback = false, bool include_extra_options = false);
   std::string type_to_enum(t_type* ttype);
   std::string make_valid_nodeJs_identifier(std::string const& name);
 
@@ -1369,11 +1370,11 @@ void t_js_generator::generate_service_client(t_service* tservice) {
     const vector<t_field*>& fields = arg_struct->get_members();
     vector<t_field*>::const_iterator fld_iter;
     string funname = (*f_iter)->get_name();
-    string arglist = argument_list(arg_struct);
+    string arglist = argument_list(arg_struct, false, true);
 
     // Open function
     f_service_ << js_namespace(tservice->get_program()) << service_name_ << "Client.prototype."
-               << function_signature(*f_iter, "", true) << " {" << endl;
+               << function_signature(*f_iter, "", true, true) << " {" << endl;
 
     indent_up();
 
@@ -1387,9 +1388,10 @@ void t_js_generator::generate_service_client(t_service* tservice) {
 
     if (gen_node_) { // Node.js output      ./gen-nodejs
       f_service_ << indent() << "this._seqid = this.new_seqid();" << endl << indent()
-                 << "if (callback === undefined) {" << endl;
+                 << "if (callback === undefined || typeof callback === 'object') {" << endl;
       indent_up();
-      f_service_ << indent() << "var _defer = Q.defer();" << endl << indent()
+      f_service_ << indent() << "if (typeof callback === 'object') _extraOptions = callback;" << endl << indent()
+                 << "var _defer = Q.defer();" << endl << indent()
                  << "this._reqs[this.seqid()] = function(error, result) {" << endl;
       indent_up();
       indent(f_service_) << "if (error) {" << endl;
@@ -1455,7 +1457,7 @@ void t_js_generator::generate_service_client(t_service* tservice) {
 
     // Send function
     f_service_ << js_namespace(tservice->get_program()) << service_name_ << "Client.prototype.send_"
-               << function_signature(*f_iter, "", !gen_node_) << " {" << endl;
+               << function_signature(*f_iter, "", !gen_node_, true) << " {" << endl;
 
     indent_up();
 
@@ -1503,7 +1505,7 @@ void t_js_generator::generate_service_client(t_service* tservice) {
                << ".writeMessageEnd();" << endl;
 
     if (gen_node_) {
-      f_service_ << indent() << "return this.output.flush();" << endl;
+      f_service_ << indent() << "return this.output.flush(_extraOptions);" << endl;
     } else {
       if (gen_jquery_) {
         f_service_ << indent() << "return this.output.getTransport().flush(callback);" << endl;
@@ -2063,13 +2065,14 @@ string t_js_generator::declare_field(t_field* tfield, bool init, bool obj) {
  */
 string t_js_generator::function_signature(t_function* tfunction,
                                           string prefix,
-                                          bool include_callback) {
+                                          bool include_callback,
+                                          bool include_extra_options) {
 
   string str;
 
   str = prefix + tfunction->get_name() + " = function(";
 
-  str += argument_list(tfunction->get_arglist(), include_callback);
+  str += argument_list(tfunction->get_arglist(), include_callback, include_extra_options);
 
   str += ")";
   return str;
@@ -2078,7 +2081,7 @@ string t_js_generator::function_signature(t_function* tfunction,
 /**
  * Renders a field list
  */
-string t_js_generator::argument_list(t_struct* tstruct, bool include_callback) {
+string t_js_generator::argument_list(t_struct* tstruct, bool include_callback, bool include_extra_options) {
   string result = "";
 
   const vector<t_field*>& fields = tstruct->get_members();
@@ -2098,6 +2101,13 @@ string t_js_generator::argument_list(t_struct* tstruct, bool include_callback) {
       result += ", ";
     }
     result += "callback";
+  }
+
+  if (include_extra_options) {
+    if (!fields.empty()) {
+      result += ", ";
+    }
+    result += "_extraOptions";
   }
 
   return result;
